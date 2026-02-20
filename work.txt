@@ -1,0 +1,52 @@
+Build a Smart Face Recognition Attendance System mobile app using Flutter and Firebase.
+
+App Requirements:
+
+1. Authentication:
+- Teacher/Admin login using Firebase Authentication.
+- Only admin can register students.
+
+2. Student Registration:
+- Capture student photo using device camera.
+- Detect face using Google ML Kit.
+- Generate face embedding using a TensorFlow Lite FaceNet model.
+- Store student name, roll number, and embedding vector in Firebase Firestore.
+- Prevent duplicate registration.
+
+3. Attendance Marking:
+- Open camera in real-time mode.
+- Detect face continuously.
+- Generate embedding and compare with stored embeddings using cosine similarity.
+- If similarity > 0.7, mark attendance automatically.
+- Ensure one attendance entry per student per day.
+- Store date, time, and status in Firestore.
+
+4. Dashboard:
+- Show list of students.
+- Show daily attendance list.
+- Calculate attendance percentage automatically.
+- Export attendance data as CSV.
+
+5. UI Requirements:
+- Clean modern UI.
+- Separate screens for:
+   - Login
+   - Register Student
+   - Mark Attendance
+   - Attendance Dashboard
+- Show real-time face detection bounding box.
+- Show "Attendance Marked Successfully" message after detection.
+
+6. Additional Features:
+- Prevent marking attendance using static photos (basic liveness check).
+- Add loading indicators.
+- Handle camera permissions properly.
+- Offline mode support with local caching and later cloud sync.
+
+7. Code Structure:
+- Follow MVC architecture.
+- Use proper state management (Provider or Riverpod).
+- Modular folder structure.
+- Add comments in code.
+
+Make the app scalable and production-ready.
