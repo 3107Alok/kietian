@@ -84,10 +84,12 @@ class FirebaseService {
 
   Future<List<Student>> getStudents() async {
     try {
+      debugPrint('FIREBASE: Fetching all students...');
       var snapshot = await _db.collection('students').get();
+      debugPrint('FIREBASE: Found ${snapshot.docs.length} enrolled students');
       return snapshot.docs.map((doc) => Student.fromMap(doc.data())).toList();
     } catch (e) {
-      debugPrint('Firestore Error (Mock Mode): Returning empty list. $e');
+      debugPrint('FIREBASE ERROR (getStudents): $e');
       return [];
     }
   }
@@ -95,32 +97,76 @@ class FirebaseService {
   // Attendance
   Future<void> markAttendance(Attendance attendance) async {
     try {
-      // Check if attendance already marked for today
-      DateTime now = DateTime.now();
-      DateTime startOfDay = DateTime(now.year, now.month, now.day);
-      DateTime endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+      debugPrint('FIREBASE: Marking attendance for ${attendance.studentName} in ${attendance.subject}');
+      
+      // Deterministic ID: attendance_studentId_yyyyMMdd_timeSlot
+      final dateStr = attendance.dateTime.toIso8601String().split('T')[0].replaceAll('-', '');
+      final slotStr = attendance.timeSlot.replaceAll(' ', '').replaceAll(':', '').replaceAll('-', '_');
+      final docId = 'att_${attendance.studentId}_${dateStr}_$slotStr';
 
-      var existing = await _db.collection('attendance')
-          .where('studentId', isEqualTo: attendance.studentId)
-          .where('dateTime', isGreaterThanOrEqualTo: startOfDay.toIso8601String())
-          .where('dateTime', isLessThanOrEqualTo: endOfDay.toIso8601String())
-          .get();
+      final docRef = _db.collection('attendance').doc(docId);
+      final docSnapshot = await docRef.get();
 
-      if (existing.docs.isEmpty) {
-        await _db.collection('attendance').add(attendance.toMap());
+      if (!docSnapshot.exists) {
+        await docRef.set(attendance.toMap());
+        debugPrint('FIREBASE: Attendance SAVED successfully with ID: $docId');
+      } else {
+        debugPrint('FIREBASE: Attendance ALREADY EXISTS for this slot: $docId');
+        throw Exception('Attendance already marked for this time slot');
       }
     } catch (e) {
-      debugPrint('Firestore Error (Mock Mode): Attendance marking skipped. $e');
+      debugPrint('FIREBASE ERROR (markAttendance): $e');
+      rethrow; // Ensure the controller knows it failed/was duplicate
     }
   }
 
   Future<List<Attendance>> getAttendanceLogs() async {
     try {
-      var snapshot = await _db.collection('attendance').orderBy('dateTime', descending: true).get();
-      return snapshot.docs.map((doc) => Attendance.fromMap(doc.data())).toList();
+      debugPrint('FIREBASE: Fetching attendance logs...');
+      // Removing .orderBy to bypass potential missing index issues during debugging
+      var snapshot = await _db.collection('attendance').get();
+      debugPrint('FIREBASE: Found ${snapshot.docs.length} raw records');
+      
+      List<Attendance> logs = snapshot.docs.map((doc) {
+        try {
+          final data = doc.data();
+          debugPrint('FIREBASE: Parsing Record IDs: ${doc.id} - data: $data');
+          return Attendance.fromMap(data);
+        } catch (e) {
+          debugPrint('FIREBASE ERROR: Parsing record ${doc.id} failed: $e');
+          return null;
+        }
+      }).whereType<Attendance>().toList();
+
+      // Sort in-memory instead
+      logs.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+      
+      debugPrint('FIREBASE: Successfully parsed ${logs.length} logs');
+      return logs;
     } catch (e) {
-      debugPrint('Firestore Error (Mock Mode): Returning empty logs. $e');
+      debugPrint('FIREBASE ERROR (getAttendanceLogs): $e');
       return [];
+    }
+  }
+
+  Future<int> getTodayAttendanceCount() async {
+    try {
+      DateTime now = DateTime.now();
+      DateTime startOfDay = DateTime(now.year, now.month, now.day);
+      DateTime endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      var snapshot = await _db.collection('attendance')
+          .where('dateTime', isGreaterThanOrEqualTo: startOfDay.toIso8601String())
+          .where('dateTime', isLessThanOrEqualTo: endOfDay.toIso8601String())
+          .get();
+      
+      // Get unique student IDs present today
+      final uniqueStudents = snapshot.docs.map((doc) => doc.data()['studentId'] as String).toSet();
+      debugPrint('FIREBASE: Today unique students count: ${uniqueStudents.length}');
+      return uniqueStudents.length;
+    } catch (e) {
+      debugPrint('FIREBASE ERROR (getTodayAttendanceCount): $e');
+      return 0;
     }
   }
 }

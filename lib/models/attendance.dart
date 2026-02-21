@@ -4,6 +4,9 @@ class Attendance {
   final String studentName;
   final DateTime dateTime;
   final String status;
+  final String subject;
+  final String branch;
+  final String timeSlot; // New field
 
   Attendance({
     required this.id,
@@ -11,6 +14,9 @@ class Attendance {
     required this.studentName,
     required this.dateTime,
     this.status = 'Present',
+    required this.subject,
+    required this.branch,
+    required this.timeSlot, // New field
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +26,9 @@ class Attendance {
       'studentName': studentName,
       'dateTime': dateTime.toIso8601String(),
       'status': status,
+      'subject': subject,
+      'branch': branch,
+      'timeSlot': timeSlot, // New field
     };
   }
 
@@ -30,6 +39,9 @@ class Attendance {
       studentName: map['studentName'] ?? '',
       dateTime: DateTime.parse(map['dateTime'] ?? DateTime.now().toIso8601String()),
       status: map['status'] ?? 'Present',
+      subject: map['subject'] ?? '',
+      branch: map['branch'] ?? '',
+      timeSlot: map['timeSlot'] ?? '', // New field
     );
   }
 }

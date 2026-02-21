@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../controllers/recognition_controller.dart';
+import '../services/sound_service.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -17,12 +18,38 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool _isProcessing = false;
   List<Face> _faces = [];
   bool _isCameraReady = false;
-  String _message = "Align your face within the frame";
+  String _message = "Select All Details Then Align Face";
+  
+  String? _selectedSubject;
+  String? _selectedBranch;
+  String? _selectedTimeSlot;
+
+  final List<String> _subjects = ['Math', 'OS', 'DBMS', 'Java'];
+  final List<String> _branches = ['CS', 'CSE', 'CSIT'];
 
   @override
   void initState() {
     super.initState();
+    _selectedTimeSlot = _getCurrentTimeSlot();
     _initializeCamera();
+  }
+
+  String _getCurrentTimeSlot() {
+    final now = DateTime.now();
+    final hour = now.hour;
+    
+    // Convert to 12-hour format string for display
+    String formatPad(int h) {
+      final hh = h % 12 == 0 ? 12 : h % 12;
+      return hh.toString().padLeft(2, '0');
+    }
+    
+    final ampm = now.hour >= 12 ? "PM" : "AM";
+    final ampmNext = (now.hour + 1) >= 12 ? "PM" : "AM";
+    
+    // Format according to user preference or existing data pattern
+    // User examples: "1-2 pm slot"
+    return "${formatPad(hour)}:00 $ampm - ${formatPad(hour + 1)}:00 $ampmNext";
   }
 
   void _initializeCamera() async {
@@ -60,6 +87,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (_controller == null || !_controller!.value.isInitialized) return;
 
     try {
+      // Re-calculate the slot right before marking to ensure accuracy
+      _selectedTimeSlot = _getCurrentTimeSlot();
+
       // Stop stream before taking picture
       if (_controller!.value.isStreamingImages) {
         await _controller!.stopImageStream();
@@ -68,17 +98,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (!mounted) return;
       final image = await _controller!.takePicture();
       final controller = context.read<RecognitionController>();
-      final result = await controller.markAttendance(File(image.path));
+      
+      if (_selectedSubject == null || _selectedBranch == null) {
+        setState(() => _message = "Please select Subject and Branch");
+        _startStream();
+        return;
+      }
+
+      final result = await controller.markAttendance(
+        File(image.path), 
+        _selectedSubject!, 
+        _selectedBranch!,
+        _selectedTimeSlot!
+      );
       
       if (!mounted) return;
       setState(() => _message = result ?? "Wait...");
       
-      if (result != null && result.contains("Attendance marked")) {
+      if (result != null && result.contains("Verified")) {
+          SoundService().playAttendanceSound();
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) Navigator.pop(context);
           });
       } else {
-        // Restart stream if attendance failed
         _startStream();
       }
     } catch (e) {
@@ -108,96 +150,201 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Widget build(BuildContext context) {
     if (!_isCameraReady) {
       return const Scaffold(
-        backgroundColor: Color(0xFF1A1A2E),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF4E4EBA))),
+        backgroundColor: Color(0xFF0F172A),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF6366F1))),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('FACE SCANNER', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 18)),
+        title: const Text('FACE SCANNER', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 20)),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: Colors.white10),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 30),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(30),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CameraPreview(_controller!),
-                    
-                    // High-tech scanning overlay
-                    _ScannerOverlay(
-                      message: _message, 
-                      faces: _faces, 
-                      cameraSize: _controller?.value.previewSize,
-                    ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+          ),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(40),
+                  border: Border.all(color: Colors.white10),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 40, offset: const Offset(0, 10)),
                   ],
                 ),
-              ),
-            ),
-          ),
-          
-          Container(
-            padding: const EdgeInsets.all(32.0),
-            decoration: const BoxDecoration(
-              color: Color(0xFF1A1A2E),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  _message.toUpperCase(),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _message.contains('Success') ? Colors.greenAccent : Colors.white70,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(38),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      CameraPreview(_controller!),
+                      _ScannerOverlay(
+                        message: _message, 
+                        faces: _faces, 
+                        cameraSize: _controller?.value.previewSize,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 32),
-                Consumer<RecognitionController>(
-                  builder: (context, controller, _) {
-                    return SizedBox(
-                      width: double.infinity,
-                      height: 64,
-                      child: ElevatedButton(
-                        onPressed: controller.isBusy ? null : _scanFace,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4E4EBA),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                          elevation: 12,
-                          shadowColor: Colors.indigo.withValues(alpha: 0.5),
+              ),
+            ),
+            
+            Container(
+              padding: const EdgeInsets.all(28.0),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.03),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildDropdown(
+                          value: _selectedSubject,
+                          label: 'Subject',
+                          items: _subjects,
+                          onChanged: (val) => setState(() => _selectedSubject = val),
                         ),
-                        child: controller.isBusy 
-                          ? const CircularProgressIndicator(color: Colors.white) 
-                          : const Text('START AUTHENTICATION', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
                       ),
-                    );
-                  }
-                ),
-                const SizedBox(height: 10),
-              ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: _buildDropdown(
+                          value: _selectedBranch,
+                          label: 'Branch',
+                          items: _branches,
+                          onChanged: (val) => setState(() => _selectedBranch = val),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFF6366F1).withValues(alpha: 0.1)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.access_time_rounded, color: Color(0xFF6366F1), size: 20),
+                        ),
+                        const SizedBox(width: 16),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('ACTIVE SLOT', style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+                            const SizedBox(height: 4),
+                            Text(_selectedTimeSlot ?? 'Detecting...', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: Text(
+                      _message.toUpperCase(),
+                      key: ValueKey(_message),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _message.contains('Verified') ? const Color(0xFF10B981) : Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  Consumer<RecognitionController>(
+                    builder: (context, controller, _) {
+                      return SizedBox(
+                        width: double.infinity,
+                        height: 64,
+                        child: ElevatedButton(
+                          onPressed: controller.isBusy ? null : _scanFace,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF6366F1),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            elevation: 12,
+                            shadowColor: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                          ),
+                          child: controller.isBusy 
+                            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3)) 
+                            : const Text('START AUTHENTICATION', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+                        ),
+                      );
+                    }
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String? value,
+    required String label,
+    required List<String> items,
+    required void Function(String?) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: value,
+          onChanged: onChanged,
+          dropdownColor: const Color(0xFF1E293B),
+          elevation: 16,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFF6366F1)),
+          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.02),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
             ),
           ),
-        ],
-      ),
+          items: items.map((item) => DropdownMenuItem(
+            value: item,
+            child: Text(item),
+          )).toList(),
+        ),
+      ],
     );
   }
 }
@@ -215,7 +362,11 @@ class _ScannerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const double scanWidth = 280;
+    const double scanHeight = 400;
+
     return Stack(
+      alignment: Alignment.center,
       children: [
         // Real-time Bounding Boxes
         if (cameraSize != null)
@@ -227,24 +378,33 @@ class _ScannerOverlay extends StatelessWidget {
               ),
             ),
           ),
-        // Pulsing frame
-        Center(
-          child: Container(
-            width: 260,
-            height: 380,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(40),
-              border: Border.all(color: const Color(0xFF4E4EBA).withValues(alpha: 0.4), width: 1),
-            ),
+
+        // Scanning Overlay Frame (Glassy)
+        Container(
+          width: scanWidth,
+          height: scanHeight,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
           ),
         ),
-        // Corners
-        _buildCorner(Alignment.topLeft),
-        _buildCorner(Alignment.topRight),
-        _buildCorner(Alignment.bottomLeft),
-        _buildCorner(Alignment.bottomRight),
-        
-        // Scan line effect could be added here with an animation
+
+        // Animated Scanning Line
+        _RepeatingScannerLine(width: scanWidth, height: scanHeight),
+
+        // Decorative corners
+        SizedBox(
+          width: scanWidth + 10,
+          height: scanHeight + 10,
+          child: Stack(
+            children: [
+              _buildCorner(Alignment.topLeft),
+              _buildCorner(Alignment.topRight),
+              _buildCorner(Alignment.bottomLeft),
+              _buildCorner(Alignment.bottomRight),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -252,16 +412,70 @@ class _ScannerOverlay extends StatelessWidget {
   Widget _buildCorner(Alignment alignment) {
     return Align(
       alignment: alignment,
-      child: Padding(
-        padding: const EdgeInsets.all(40.0),
-        child: Container(
-          width: 270,
-          height: 390,
-          child: CustomPaint(
-            painter: _CornerPainter(alignment),
-          ),
+      child: SizedBox(
+        width: 50,
+        height: 50,
+        child: CustomPaint(
+          painter: _CornerPainter(alignment),
         ),
       ),
+    );
+  }
+}
+
+class _RepeatingScannerLine extends StatefulWidget {
+  final double width;
+  final double height;
+  const _RepeatingScannerLine({required this.width, required this.height});
+
+  @override
+  State<_RepeatingScannerLine> createState() => _RepeatingScannerLineState();
+}
+
+class _RepeatingScannerLineState extends State<_RepeatingScannerLine> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 4))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Positioned(
+          top: (widget.height * _controller.value),
+          child: Container(
+            width: widget.width - 10,
+            height: 3,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  const Color(0xFF6366F1).withValues(alpha: 0.8),
+                  Colors.transparent,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -273,11 +487,12 @@ class _CornerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF4E4EBA)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
+      ..color = const Color(0xFF6366F1)
+      ..strokeWidth = 6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
-    final length = 40.0;
+    const length = 25.0;
     final path = Path();
 
     if (alignment == Alignment.topLeft) {
@@ -315,8 +530,8 @@ class _FaceBoxPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = const Color(0xFF4E4EBA);
+      ..strokeWidth = 2.5
+      ..color = const Color(0xFF10B981); // Emerald for detection
 
     for (final face in faces) {
       final rect = _scaleRect(
@@ -326,19 +541,16 @@ class _FaceBoxPainter extends CustomPainter {
       );
       
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+        RRect.fromRectAndRadius(rect, const Radius.circular(15)),
         paint,
       );
 
-      // Decorative dots at corners
-      final cornerPaint = Paint()
-        ..color = Colors.greenAccent
-        ..style = PaintingStyle.fill;
-      
-      canvas.drawCircle(rect.topLeft, 4, cornerPaint);
-      canvas.drawCircle(rect.topRight, 4, cornerPaint);
-      canvas.drawCircle(rect.bottomLeft, 4, cornerPaint);
-      canvas.drawCircle(rect.bottomRight, 4, cornerPaint);
+      // Techy corners on box
+      final dotPaint = Paint()..color = const Color(0xFF10B981);
+      canvas.drawCircle(rect.topLeft, 4, dotPaint);
+      canvas.drawCircle(rect.topRight, 4, dotPaint);
+      canvas.drawCircle(rect.bottomLeft, 4, dotPaint);
+      canvas.drawCircle(rect.bottomRight, 4, dotPaint);
     }
   }
 
@@ -347,7 +559,6 @@ class _FaceBoxPainter extends CustomPainter {
     required Size imageSize,
     required Size widgetSize,
   }) {
-    // Note: On Android, the preview size is often landscape, so we swap.
     final double scaleX = widgetSize.width / imageSize.height;
     final double scaleY = widgetSize.height / imageSize.width;
 

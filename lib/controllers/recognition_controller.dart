@@ -16,16 +16,28 @@ class RecognitionController extends ChangeNotifier {
   List<Student> _students = [];
   List<Student> get students => _students;
 
+  int _todayAttendanceCount = 0;
+  int get todayAttendanceCount => _todayAttendanceCount;
+
   bool _isBusy = false;
   bool get isBusy => _isBusy;
+
+  // Local debouncing set to prevent race conditions/multiple marks in short frames
+  final Set<String> _recentlyMarkedStudents = {};
 
   Future<void> initialize() async {
     await _mlService.initialize();
     await fetchStudents();
+    await fetchTodayCount();
   }
 
   Future<void> fetchStudents() async {
     _students = await _firebaseService.getStudents();
+    notifyListeners();
+  }
+
+  Future<void> fetchTodayCount() async {
+    _todayAttendanceCount = await _firebaseService.getTodayAttendanceCount();
     notifyListeners();
   }
 
@@ -68,7 +80,7 @@ class RecognitionController extends ChangeNotifier {
     }
   }
 
-  Future<String?> markAttendance(File imageFile) async {
+  Future<String?> markAttendance(File imageFile, String subject, String branch, String timeSlot) async {
     _isBusy = true;
     notifyListeners();
 
@@ -94,19 +106,39 @@ class RecognitionController extends ChangeNotifier {
       }
 
       if (matchedStudent != null) {
+        if (_recentlyMarkedStudents.contains(matchedStudent.id)) {
+          return "Already marked in this session";
+        }
+
         final attendance = Attendance(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
           studentId: matchedStudent.id,
           studentName: matchedStudent.name,
           dateTime: DateTime.now(),
+          subject: subject,
+          branch: branch,
+          timeSlot: timeSlot,
         );
+        
         await _firebaseService.markAttendance(attendance);
+        
+        // Debounce: Temporarily track to prevent duplicate frames from triggering
+        final studentId = matchedStudent.id;
+        _recentlyMarkedStudents.add(studentId);
+        Future.delayed(const Duration(seconds: 10), () {
+          _recentlyMarkedStudents.remove(studentId);
+        });
+
+        await fetchTodayCount();
         return "Identity Verified: ${matchedStudent.name} (${(maxSimilarity * 100).toStringAsFixed(0)}%)";
       } else {
         return "Not Recognized (Max Score: ${maxSimilarity.toStringAsFixed(2)})";
       }
     } catch (e) {
       debugPrint('CONTROLLER ATTENDANCE ERROR: $e');
+      if (e.toString().contains('already marked')) {
+        return "Already marked for this time slot";
+      }
       return e.toString().replaceAll('Exception: ', '');
     } finally {
       _isBusy = false;

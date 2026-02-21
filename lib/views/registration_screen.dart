@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../controllers/recognition_controller.dart';
+import '../services/sound_service.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -83,6 +84,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           await controller.fetchStudents();
           if (!mounted) return;
           
+          SoundService().playRegistrationSound();
           _showSuccessDialog(_nameController.text);
       } else {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
@@ -144,106 +146,116 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   Widget build(BuildContext context) {
     if (!_isCameraReady) {
       return const Scaffold(
-        backgroundColor: Color(0xFF1A1A2E),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF4E4EBA))),
+        backgroundColor: Color(0xFF0F172A),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF6366F1))),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('ENROLL STUDENT', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5, fontSize: 18)),
+        title: const Text('ENROLL STUDENT', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 20)),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          children: [
-            const SizedBox(height: 10),
-            // Camera Preview with Scanning Frame
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: MediaQuery.of(context).size.width - 48,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(color: Colors.white10),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: CameraPreview(_controller!),
-                  ),
-                ),
-                // Scanning Overlay
-                _ScannerOverlay(
-                  faces: _faces, 
-                  cameraSize: _controller?.value.previewSize,
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-            
-            // Registration Form
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              child: Column(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+          ),
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              // Camera Preview with Scanning Frame
+              Stack(
+                alignment: Alignment.center,
                 children: [
-                  _buildTextField(
-                    controller: _nameController,
-                    label: 'Full Name',
-                    icon: Icons.person_outline_rounded,
+                  Container(
+                    width: double.infinity,
+                    height: MediaQuery.of(context).size.width - 48,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(40),
+                      border: Border.all(color: Colors.white10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 30,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(38),
+                      child: CameraPreview(_controller!),
+                    ),
                   ),
-                  const SizedBox(height: 20),
-                  _buildTextField(
-                    controller: _rollController,
-                    label: 'Roll Number',
-                    icon: Icons.badge_outlined,
+                  _ScannerOverlay(
+                    faces: _faces, 
+                    cameraSize: _controller?.value.previewSize,
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 32),
-            
-            Consumer<RecognitionController>(
-              builder: (context, controller, _) {
-                return SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: controller.isBusy ? null : _register,
-                    icon: const Icon(Icons.camera_enhance_rounded),
-                    label: Text(
-                      controller.isBusy ? 'REGISTERING...' : 'CAPTURE & ENROLL',
-                      style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.1),
+              const SizedBox(height: 40),
+              
+              // Registration Form
+              Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(32),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                child: Column(
+                  children: [
+                    _buildTextField(
+                      controller: _nameController,
+                      label: 'Full Name',
+                      icon: Icons.person_outline_rounded,
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4E4EBA),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 8,
-                      shadowColor: Colors.indigo.withValues(alpha: 0.4),
+                    const SizedBox(height: 24),
+                    _buildTextField(
+                      controller: _rollController,
+                      label: 'Roll Number',
+                      icon: Icons.badge_outlined,
                     ),
-                  ),
-                );
-              }
-            ),
-            const SizedBox(height: 40),
-          ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              Consumer<RecognitionController>(
+                builder: (context, controller, _) {
+                  return SizedBox(
+                    width: double.infinity,
+                    height: 64,
+                    child: ElevatedButton.icon(
+                      onPressed: controller.isBusy ? null : _register,
+                      icon: controller.isBusy 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.camera_enhance_rounded),
+                      label: Text(
+                        controller.isBusy ? 'REGISTERING...' : 'CAPTURE & ENROLL',
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.1),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6366F1),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        elevation: 12,
+                        shadowColor: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                      ),
+                    ),
+                  );
+                }
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
@@ -254,20 +266,30 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     required String label,
     required IconData icon,
   }) {
-    return TextField(
-      controller: controller,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: Colors.white38),
-        prefixIcon: Icon(icon, color: Colors.indigoAccent),
-        enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label.toUpperCase(), style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: const Color(0xFF6366F1), size: 18),
+            filled: true,
+            fillColor: Colors.white.withValues(alpha: 0.02),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5),
+            ),
+          ),
         ),
-        focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: Color(0xFF4E4EBA), width: 2),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -283,7 +305,10 @@ class _ScannerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scanAreaSize = (MediaQuery.of(context).size.width - 48) * 0.8;
+    
     return Stack(
+      alignment: Alignment.center,
       children: [
         // Real-time Bounding Boxes
         if (cameraSize != null)
@@ -296,32 +321,62 @@ class _ScannerOverlay extends StatelessWidget {
             ),
           ),
 
-        // Scanning Overlay Frame
+        // Scanning Overlay Frame (Glassy)
         Container(
-          width: (MediaQuery.of(context).size.width - 48) * 0.8,
-          height: (MediaQuery.of(context).size.width - 48) * 0.8,
+          width: scanAreaSize,
+          height: scanAreaSize,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFF4E4EBA).withValues(alpha: 0.4), width: 1),
+            borderRadius: BorderRadius.circular(32),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
           ),
         ),
 
-        // Decorative corners
-        Positioned.fill(
-          child: Align(
-            alignment: Alignment.center,
-            child: Container(
-              width: (MediaQuery.of(context).size.width - 48) * 0.82,
-              height: (MediaQuery.of(context).size.width - 48) * 0.82,
-              child: Stack(
-                children: [
-                  _buildCorner(Alignment.topLeft),
-                  _buildCorner(Alignment.topRight),
-                  _buildCorner(Alignment.bottomLeft),
-                  _buildCorner(Alignment.bottomRight),
-                ],
+        // Animated Scanning Line
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(seconds: 2),
+          builder: (context, value, child) {
+            return Positioned(
+              top: (scanAreaSize * value),
+              child: Container(
+                width: scanAreaSize - 4,
+                height: 2,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      const Color(0xFF6366F1).withValues(alpha: 0),
+                      const Color(0xFF6366F1),
+                      const Color(0xFF6366F1).withValues(alpha: 0),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.5),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
               ),
-            ),
+            );
+          },
+          onEnd: () {}, // Handled by repeating via a loop if needed, but for now simple 1-pass is fine or I'll use a better repeating method below
+        ),
+        
+        // Repeating Animation Hack for Stateless
+        _RepeatingScannerLine(size: scanAreaSize),
+
+        // Decorative corners
+        SizedBox(
+          width: scanAreaSize + 10,
+          height: scanAreaSize + 10,
+          child: Stack(
+            children: [
+              _buildCorner(Alignment.topLeft),
+              _buildCorner(Alignment.topRight),
+              _buildCorner(Alignment.bottomLeft),
+              _buildCorner(Alignment.bottomRight),
+            ],
           ),
         ),
       ],
@@ -331,13 +386,65 @@ class _ScannerOverlay extends StatelessWidget {
   Widget _buildCorner(Alignment alignment) {
     return Align(
       alignment: alignment,
-      child: Container(
-        width: 40,
-        height: 40,
+      child: SizedBox(
+        width: 50,
+        height: 50,
         child: CustomPaint(
           painter: _CornerPainter(alignment),
         ),
       ),
+    );
+  }
+}
+
+class _RepeatingScannerLine extends StatefulWidget {
+  final double size;
+  const _RepeatingScannerLine({required this.size});
+
+  @override
+  State<_RepeatingScannerLine> createState() => _RepeatingScannerLineState();
+}
+
+class _RepeatingScannerLineState extends State<_RepeatingScannerLine> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Positioned(
+          top: widget.size * _controller.value,
+          child: Container(
+            width: widget.size - 4,
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Colors.transparent, Color(0xFF6366F1), Colors.transparent],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                  blurRadius: 15,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -349,11 +456,12 @@ class _CornerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF4E4EBA)
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
+      ..color = const Color(0xFF6366F1)
+      ..strokeWidth = 5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
-    final length = 20.0;
+    const length = 20.0;
     final path = Path();
 
     if (alignment == Alignment.topLeft) {
@@ -392,7 +500,7 @@ class _FaceBoxPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0
-      ..color = const Color(0xFF4E4EBA);
+      ..color = const Color(0xFF10B981); // Emerald for detection
 
     for (final face in faces) {
       final rect = _scaleRect(
@@ -402,19 +510,16 @@ class _FaceBoxPainter extends CustomPainter {
       );
       
       canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(8)),
+        RRect.fromRectAndRadius(rect, const Radius.circular(12)),
         paint,
       );
 
-      // Decorative dots at corners
-      final cornerPaint = Paint()
-        ..color = Colors.greenAccent
-        ..style = PaintingStyle.fill;
-      
-      canvas.drawCircle(rect.topLeft, 4, cornerPaint);
-      canvas.drawCircle(rect.topRight, 4, cornerPaint);
-      canvas.drawCircle(rect.bottomLeft, 4, cornerPaint);
-      canvas.drawCircle(rect.bottomRight, 4, cornerPaint);
+      // Decorative dots
+      final dotPaint = Paint()..color = const Color(0xFF10B981);
+      canvas.drawCircle(rect.topLeft, 4, dotPaint);
+      canvas.drawCircle(rect.topRight, 4, dotPaint);
+      canvas.drawCircle(rect.bottomLeft, 4, dotPaint);
+      canvas.drawCircle(rect.bottomRight, 4, dotPaint);
     }
   }
 
@@ -423,12 +528,13 @@ class _FaceBoxPainter extends CustomPainter {
     required Size imageSize,
     required Size widgetSize,
   }) {
-    // Note: On Android, the preview size is often landscape, so we swap.
+    // Note: Sensor orientation can vary, but standard back is landscape.
+    // Front camera often needs mirroring.
     final double scaleX = widgetSize.width / imageSize.height;
     final double scaleY = widgetSize.height / imageSize.width;
 
     return Rect.fromLTRB(
-      (imageSize.height - rect.right) * scaleX, 
+      (imageSize.height - rect.right) * scaleX,
       rect.top * scaleY,
       (imageSize.height - rect.left) * scaleX,
       rect.bottom * scaleY,
